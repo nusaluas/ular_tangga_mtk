@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Permainan Ular Tangga Matematika</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            touch-action: manipulation;
+        }
+        .board-container {
+            width: 95vw;
+            height: 95vw;
+            max-width: 600px;
+            max-height: 600px;
+        }
+        canvas {
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .dice {
+            width: 80px;
+            height: 80px;
+            perspective: 1000px;
+        }
+        .dice-inner {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 1s;
+        }
+        .dice-face {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border: 2px solid #4A5568;
+            border-radius: 10px;
+            background-color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2D3748;
+        }
+        .front  { transform: rotateY(  0deg) translateZ(40px); }
+        .back   { transform: rotateY(180deg) translateZ(40px); }
+        .right  { transform: rotateY( 90deg) translateZ(40px); }
+        .left   { transform: rotateY(-90deg) translateZ(40px); }
+        .top    { transform: rotateX( 90deg) translateZ(40px); }
+        .bottom { transform: rotateX(-90deg) translateZ(40px); }
+        .modal-overlay { transition: opacity 0.3s ease; }
+        #musicUpload { display: none; }
+        .playlist-item { cursor: pointer; transition: background-color 0.2s; }
+        .playlist-item:hover { background-color: #f0f0f0; }
+        .playlist-item.playing { background-color: #dbeafe; color: #1e40af; }
+        .avatar-select {
+            font-size: 1.5rem;
+            padding: 0.25rem;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 relative">
+        <!-- Tombol Pengaturan -->
+        <button id="settingsButton" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+            </svg>
+        </button>
+
+        <div class="text-center mb-6">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">Ular Tangga Matematika</h1>
+            <p id="message" class="mt-2 text-lg text-indigo-600 font-semibold h-8">&nbsp;</p>
+        </div>
+
+        <div class="flex flex-col lg:flex-row items-start justify-center gap-12">
+            <div class="board-container relative">
+                <canvas id="gameCanvas"></canvas>
+            </div>
+            <div class="flex flex-col items-center gap-4 w-full lg:max-w-xs">
+                <div id="turn-indicator" class="text-2xl font-bold p-3 rounded-lg shadow-md transition-all duration-300 bg-gray-200 text-gray-800 w-full">
+                    Giliran Pemain 1
+                </div>
+                <div class="dice-container">
+                    <div class="dice" id="dice"><div class="dice-inner" id="dice-inner">
+                        <div class="dice-face front">1</div><div class="dice-face back">6</div>
+                        <div class="dice-face right">4</div><div class="dice-face left">3</div>
+                        <div class="dice-face top">2</div><div class="dice-face bottom">5</div>
+                    </div></div>
+                </div>
+                <button id="rollButton" class="w-full bg-indigo-600 text-white font-bold py-4 px-6 rounded-xl text-xl shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition-all duration-300 transform hover:scale-105">Kocok Dadu</button>
+                <button id="undoButton" class="w-full bg-gray-500 text-white font-bold py-3 px-6 rounded-xl text-lg shadow-md hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-300 transition-all duration-300 transform hover:scale-105">Batalkan Langkah</button>
+                <button id="resetButton" class="w-full bg-yellow-500 text-white font-bold py-3 px-6 rounded-xl text-lg shadow-md hover:bg-yellow-600 focus:outline-none focus:ring-4 focus:ring-yellow-300 transition-all duration-300 transform hover:scale-105">Reset Permainan</button>
+                <div id="player-legend" class="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 text-sm w-full">
+                    <!-- Player legend will be generated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Pertanyaan -->
+    <div id="gameQuestionModal" class="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Pemain <span id="questionPlayerId"></span>, jawab pertanyaan ini!</h2>
+            <p id="gameQuestionText" class="text-lg text-gray-700 mb-6 min-h-[60px]">...</p>
+            <div class="w-full max-w-xs mx-auto space-y-3">
+                <button id="correctAnswerButton" class="w-full bg-green-500 text-white font-bold py-3 px-6 rounded-xl text-lg shadow-md hover:bg-green-600">Jawaban Benar</button>
+                <button id="wrongAnswerButton" class="w-full bg-red-500 text-white font-bold py-3 px-6 rounded-xl text-lg shadow-md hover:bg-red-600">Jawaban Salah (Tetap di Tempat)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Pengaturan -->
+    <div id="settingsModal" class="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full relative max-h-[90vh] overflow-y-auto">
+            <button id="closeSettingsButton" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Pengaturan</h2>
+            
+            <div class="space-y-6">
+                <div>
+                    <label for="playerCount" class="block text-lg font-medium text-gray-700">Jumlah Pemain: <span id="playerCountLabel">2</span></label>
+                    <input type="range" id="playerCount" min="2" max="15" value="2" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div>
+                    <h3 class="text-lg font-medium text-gray-700 mb-2">Avatar Pemain</h3>
+                    <div id="playerAvatarSettings" class="grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-medium text-gray-700 mb-3">Musik Latar</h3>
+                    <audio id="bgMusicPlayer" controls loop class="w-full mb-3"></audio>
+                    <label for="musicUpload" class="w-full text-center bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 cursor-pointer block">Unggah Musik</label>
+                    <input type="file" id="musicUpload" accept="audio/*" multiple>
+                    <div id="playlist" class="mt-3 max-h-40 overflow-y-auto border rounded-lg p-2">
+                        <p class="text-gray-500 text-center">Playlist kosong.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Bank Soal Matematika (Tingkat Kesulitan Meningkat) ---
+        const questionsBySquare = {
+            // Level 1: Penjumlahan & Pengurangan Sederhana (Kotak 1-20)
+            1: Array(50).fill({ q: "Selamat datang! Lempar dadu untuk memulai perjalananmu.", a: "" }),
+            2: Array(50).fill({ q: "Kamu punya 3 apel, temanmu memberimu 2 apel lagi. Berapa apelmu sekarang?", a: "5" }),
+            3: Array(50).fill({ q: "Ada 5 burung di pohon, 1 terbang pergi. Berapa sisa burung di pohon?", a: "4" }),
+            4: Array(50).fill({ q: "Ibu memberimu 4 permen, ayah memberimu 5 permen. Berapa total permenmu?", a: "9" }),
+            5: Array(50).fill({ q: "Kamu punya 10 kelereng, hilang 3. Berapa sisa kelerengmu?", a: "7" }),
+            6: Array(50).fill({ q: "Di piring ada 6 kue. Kamu makan 2. Berapa sisa kue?", a: "4" }),
+            7: Array(50).fill({ q: "Ada 8 mobil di parkiran. Datang lagi 2 mobil. Berapa jumlah mobil sekarang?", a: "10" }),
+            8: Array(50).fill({ q: "Kakak punya 12 pensil. Dia memberikan 5 pensil kepadamu. Berapa sisa pensil kakak?", a: "7" }),
+            9: Array(50).fill({ q: "Di kelas ada 7 anak laki-laki dan 8 anak perempuan. Berapa jumlah semua anak?", a: "15" }),
+            10: Array(50).fill({ q: "Kamu menabung Rp5.000. Lalu kamu menabung lagi Rp3.000. Berapa total tabunganmu?", a: "8000" }),
+            11: Array(50).fill({ q: "Sebuah bus berisi 15 penumpang. Turun 4 penumpang. Berapa penumpang yang tersisa?", a: "11" }),
+            12: Array(50).fill({ q: "Harga sebuah penghapus Rp1.000. Kamu punya uang Rp5.000. Berapa kembaliannya?", a: "4000" }),
+            13: Array(50).fill({ q: "Dalam keranjang ada 9 mangga. Ibu menambahkan 6 mangga lagi. Berapa total mangga sekarang?", a: "15" }),
+            14: Array(50).fill({ q: "Umurmu 8 tahun. Umur adikmu 5 tahun. Berapa selisih umur kalian?", a: "3" }),
+            15: Array(50).fill({ q: "Di perpustakaan ada 20 buku. Kamu meminjam 3 buku. Berapa sisa buku di rak?", a: "17" }),
+            16: Array(50).fill({ q: "Kamu membeli es krim seharga Rp4.000 dan air mineral Rp2.000. Berapa totalnya?", a: "6000" }),
+            17: Array(50).fill({ q: "Pak guru punya 18 spidol. 7 spidol tintanya habis. Berapa spidol yang masih bisa dipakai?", a: "11" }),
+            18: Array(50).fill({ q: "Ada 13 ayam di kandang. Masuk lagi 5 ayam. Berapa total ayam di kandang?", a: "18" }),
+            19: Array(50).fill({ q: "Skor tim kamu 10. Skor tim lawan 7. Berapa selisih skornya?", a: "3" }),
+            20: Array(50).fill({ q: "Kamu punya uang Rp10.000. Jajan Rp6.000. Berapa sisa uangmu?", a: "4000" }),
+            
+            // Level 2: Perkalian & Pembagian Sederhana, Operasi Campuran (Kotak 21-40)
+            21: Array(50).fill({ q: "Ada 3 kotak donat. Setiap kotak berisi 6 donat. Berapa total donat?", a: "18" }),
+            22: Array(50).fill({ q: "Kamu punya 12 permen yang akan dibagikan kepada 4 temanmu sama rata. Berapa permen untuk tiap teman?", a: "3" }),
+            23: Array(50).fill({ q: "Satu mobil punya 4 roda. Berapa roda untuk 5 mobil?", a: "20" }),
+            24: Array(50).fill({ q: "Ibu membeli 15 jeruk dan membaginya untuk 3 anaknya. Berapa jeruk yang didapat masing-masing?", a: "5" }),
+            25: Array(50).fill({ q: "Di kelas ada 4 baris meja. Setiap baris ada 5 meja. Berapa jumlah semua meja?", a: "20" }),
+            26: Array(50).fill({ q: "Kamu menabung Rp2.000 setiap hari selama seminggu (7 hari). Berapa total tabunganmu?", a: "14000" }),
+            27: Array(50).fill({ q: "20 siswa akan dibagi menjadi 5 kelompok. Berapa anggota setiap kelompok?", a: "4" }),
+            28: Array(50).fill({ q: "Kamu membeli 3 buku seharga Rp5.000 per buku. Berapa total yang harus dibayar?", a: "15000" }),
+            29: Array(50).fill({ q: "Seorang peternak punya 24 telur dan ingin meletakkannya di 4 wadah. Berapa isi setiap wadah?", a: "6" }),
+            30: Array(50).fill({ q: "Satu jam ada 60 menit. Berapa menit dalam 2 jam?", a: "120" }),
+            31: Array(50).fill({ q: "Harga 1 kg apel Rp10.000. Ibu membeli 3 kg. Berapa yang harus dibayar?", a: "30000" }),
+            32: Array(50).fill({ q: "Di sebuah pesta, 30 kue dibagikan kepada 10 anak. Berapa kue yang didapat setiap anak?", a: "3" }),
+            33: Array(50).fill({ q: "Sebuah sepeda memiliki 2 roda. Berapa jumlah roda dari 9 sepeda?", a: "18" }),
+            34: Array(50).fill({ q: "Kamu dan 2 temanmu (total 3 orang) patungan membeli pizza seharga Rp30.000. Berapa iuran per orang?", a: "10000" }),
+            35: Array(50).fill({ q: "Di lemari ada 5 rak buku. Setiap rak berisi 8 buku. Berapa total buku di lemari?", a: "40" }),
+            36: Array(50).fill({ q: "Kamu membeli 2 es krim @Rp3.000 dan 1 coklat @Rp4.000. Berapa total belanjaanmu?", a: "10000" }),
+            37: Array(50).fill({ q: "Pak Tani memanen 28 mangga dan dimasukkan ke dalam 4 keranjang. Berapa isi setiap keranjang?", a: "7" }),
+            38: Array(50).fill({ q: "Harga tiket masuk kebun binatang Rp20.000. Berapa harga untuk 2 orang?", a: "40000" }),
+            39: Array(50).fill({ q: "Kamu punya uang Rp20.000. Kamu membeli 3 pulpen @Rp2.000. Berapa sisa uangmu?", a: "14000" }),
+            40: Array(50).fill({ q: "45 siswa dibagi menjadi 9 barisan saat upacara. Berapa siswa di setiap barisan?", a: "5" }),
+            
+            // Level 3: Operasi Campuran Lebih Kompleks, Diskon Sederhana (Kotak 41-60)
+            41: Array(50).fill({ q: "Ibu membeli 5 kg beras @Rp10.000 dan 2 liter minyak @Rp15.000. Berapa total belanja ibu?", a: "80000" }),
+            42: Array(50).fill({ q: "Kamu punya uang Rp50.000. Kamu membeli mainan seharga Rp35.000 dan permen Rp3.000. Berapa sisanya?", a: "12000" }),
+            43: Array(50).fill({ q: "Harga sebuah baju Rp100.000. Ada diskon Rp10.000. Berapa yang harus kamu bayar?", a: "90000" }),
+            44: Array(50).fill({ q: "Sebuah toko punya 50 bola. Terjual 15 bola di pagi hari dan 20 bola di sore hari. Berapa sisa bola?", a: "15" }),
+            45: Array(50).fill({ q: "Di sebuah bus ada 45 penumpang. Di halte pertama turun 7 orang dan naik 5 orang. Berapa penumpang sekarang?", a: "43" }),
+            46: Array(50).fill({ q: "Kamu membeli 3 bungkus roti seharga Rp8.000 per bungkus dan membayar dengan uang Rp50.000. Berapa kembaliannya?", a: "26000" }),
+            47: Array(50).fill({ q: "Harga sepatu Rp150.000. Ada diskon 10%. Berapa potongan harganya (dalam Rupiah)?", a: "15000" }),
+            48: Array(50).fill({ q: "Ayah membeli 3 kotak pensil, setiap kotak berisi 12 pensil. Semua pensil dibagikan kepada 6 anak. Berapa pensil per anak?", a: "6" }),
+            49: Array(50).fill({ q: "Sebuah buku memiliki 100 halaman. Kamu membaca 25 halaman kemarin dan 30 halaman hari ini. Berapa halaman yang belum dibaca?", a: "45" }),
+            50: Array(50).fill({ q: "5 x 6 + 10 = ?", a: "40" }),
+            51: Array(50).fill({ q: "Harga mainan Rp80.000. Kamu dapat diskon 20%. Berapa yang harus kamu bayar?", a: "64000" }),
+            52: Array(50).fill({ q: "Di peternakan ada 30 ayam dan 15 kambing. Berapa jumlah semua kaki hewan?", a: "120" }),
+            53: Array(50).fill({ q: "50 / 10 * 7 = ?", a: "35" }),
+            54: Array(50).fill({ q: "Kamu punya 3 lembar uang Rp10.000 dan 4 lembar uang Rp5.000. Berapa total uangmu?", a: "50000" }),
+            55: Array(50).fill({ q: "Sebuah toko menjual 120 telur dalam sehari. Jika harga per butir Rp2.000, berapa total penjualan telur hari itu?", a: "240000" }),
+            56: Array(50).fill({ q: "Kamu berlari 3 km setiap hari selama 5 hari. Total jarak yang kamu tempuh adalah?", a: "15" }),
+            57: Array(50).fill({ q: "40 - (5 x 3) = ?", a: "25" }),
+            58: Array(50).fill({ q: "Ibu membeli 2 kg gula @Rp14.000 dan membayar dengan uang Rp50.000. Berapa kembaliannya?", a: "22000" }),
+            59: Array(50).fill({ q: "Sebuah bioskop memiliki 10 baris kursi. Setiap baris berisi 15 kursi. Jika terisi setengahnya, berapa penonton yang ada?", a: "75" }),
+            60: Array(50).fill({ q: "Harga sebuah tas Rp200.000. Kamu mendapat diskon 25%. Berapa yang harus kamu bayar?", a: "150000" }),
+            
+            // Level 4: Multi-langkah, Persentase, Rata-rata Sederhana (Kotak 61-80)
+            61: Array(50).fill({ q: "Gaji ayah Rp5.000.000. 10% untuk ditabung, 20% untuk transportasi. Berapa sisa gaji ayah?", a: "3500000" }),
+            62: Array(50).fill({ q: "Kamu membeli 3 kaos @Rp50.000 dan 1 celana Rp120.000. Total belanjaanmu dapat diskon Rp20.000. Berapa yang harus dibayar?", a: "250000" }),
+            63: Array(50).fill({ q: "Nilai ujianmu adalah 80, 90, dan 70. Berapa nilai rata-ratamu?", a: "80" }),
+            64: Array(50).fill({ q: "Sebuah mobil menempuh jarak 120 km dalam 2 jam. Berapa kecepatan rata-rata mobil tersebut (km/jam)?", a: "60" }),
+            65: Array(50).fill({ q: "Harga laptop Rp6.000.000. Ada diskon 15%. Berapa harga laptop setelah diskon?", a: "5100000" }),
+            66: Array(50).fill({ q: "Jarak kota A ke B adalah 200 km. Jika 1 liter bensin bisa untuk 20 km, berapa liter bensin yang dibutuhkan untuk pulang pergi?", a: "20" }),
+            67: Array(50).fill({ q: "Kamu punya 3 ember berisi 5 liter air, dan 2 ember berisi 8 liter air. Berapa total air dalam semua ember?", a: "31" }),
+            68: Array(50).fill({ q: "Di sebuah acara, ada 15 meja. Setiap meja memiliki 8 kursi. Jika tamu yang datang 100 orang, berapa kursi yang kosong?", a: "20" }),
+            69: Array(50).fill({ q: "Seorang pedagang membeli 50 kg mangga seharga Rp10.000/kg. Dia menjualnya lagi seharga Rp12.000/kg. Berapa keuntungannya jika semua mangga terjual?", a: "100000" }),
+            70: Array(50).fill({ q: "Suhu pagi hari 25°C. Siang hari naik 7°C. Malam hari turun 10°C dari suhu siang. Berapa suhu pada malam hari?", a: "22" }),
+            71: Array(50).fill({ q: "Sebuah resep membutuhkan 200 gram gula untuk 10 kue. Berapa gram gula yang dibutuhkan untuk membuat 25 kue?", a: "500" }),
+            72: Array(50).fill({ q: "Luas sebuah persegi panjang adalah 48 cm². Jika panjangnya 8 cm, berapa lebarnya?", a: "6" }),
+            73: Array(50).fill({ q: "Sebuah acara dimulai pukul 08.30 dan selesai pukul 11.15. Berapa lama acara tersebut berlangsung (dalam menit)?", a: "165" }),
+            74: Array(50).fill({ q: "Uangmu Rp100.000. Kamu belanja 40% dari uangmu. Berapa sisa uangmu?", a: "60000" }),
+            75: Array(50).fill({ q: "Ayah mengisi tangki mobilnya yang berkapasitas 40 liter. Saat diisi, tangki sudah terisi seperempatnya. Berapa liter bensin yang ayah isi?", a: "30" }),
+            76: Array(50).fill({ q: "Rata-rata tinggi 4 anak adalah 150 cm. Jika satu anak lagi bergabung dengan tinggi 160 cm, berapa rata-rata tinggi mereka sekarang?", a: "152" }),
+            77: Array(50).fill({ q: "Harga sebuah barang setelah diskon 30% adalah Rp70.000. Berapa harga awalnya?", a: "100000" }),
+            78: Array(50).fill({ q: "Sebuah kolam berukuran 5m x 10m x 2m. Berapa volume air maksimal yang bisa ditampung (dalam meter kubik)?", a: "100" }),
+            79: Array(50).fill({ q: "Kamu dan 4 temanmu (total 5 orang) patungan sewa lapangan Rp200.000 selama 2 jam. Berapa iuran per orang per jam?", a: "20000" }),
+            80: Array(50).fill({ q: "Seorang penjahit bisa membuat 3 baju dalam sehari. Berapa hari yang dibutuhkan untuk membuat 2 lusin (24) baju?", a: "8" }),
+            
+            // Level 5: Soal Cerita Kompleks, Kombinasi Konsep (Kotak 81-100)
+            81: Array(50).fill({ q: "Sebuah toko memberikan diskon 20% untuk semua barang. Kamu membeli celana yang harga awalnya Rp250.000. Jika kamu membayar dengan 2 lembar uang Rp100.000, berapa kembaliannya?", a: "0" }),
+            82: Array(50).fill({ q: "Sebuah proyek dikerjakan 10 orang selesai dalam 6 hari. Jika ingin selesai dalam 5 hari, berapa orang tambahan yang dibutuhkan?", a: "2" }),
+            83: Array(50).fill({ q: "Kamu menabung di bank Rp1.000.000 dengan bunga 12% per tahun. Berapa total uangmu setelah 6 bulan (bunga tunggal)?", a: "1060000" }),
+            84: Array(50).fill({ q: "Perbandingan uang Adi dan Budi adalah 2:3. Jika jumlah uang mereka Rp150.000, berapa uang Budi?", a: "90000" }),
+            85: Array(50).fill({ q: "Sebuah kereta berangkat pukul 07.00 dengan kecepatan 80 km/jam. Kereta lain berangkat dari stasiun yang sama pukul 08.00 dengan kecepatan 100 km/jam. Pukul berapa kereta kedua menyusul kereta pertama?", a: "12.00" }),
+            86: Array(50).fill({ q: "Sebuah drum berisi minyak 3/4 penuh. Setelah digunakan 15 liter, isinya menjadi 1/2 penuh. Berapa kapasitas total drum tersebut (dalam liter)?", a: "60" }),
+            87: Array(50).fill({ q: "Harga 3 buku dan 2 pensil adalah Rp21.000. Harga 1 buku dan 3 pensil adalah Rp11.500. Berapa harga 1 buku?", a: "5000" }),
+            88: Array(50).fill({ q: "Sebuah taman berbentuk lingkaran dengan diameter 14 meter. Berapa keliling taman tersebut? (π = 22/7)", a: "44" }),
+            89: Array(50).fill({ q: "Ayah membeli TV seharga Rp4.000.000 dengan diskon 20%, lalu dikenai pajak 10% dari harga setelah diskon. Berapa yang harus dibayar?", a: "3520000" }),
+            90: Array(50).fill({ q: "Rata-rata nilai 5 siswa adalah 85. Jika satu siswa dengan nilai 90 keluar, berapa rata-rata nilai 4 siswa yang tersisa?", a: "83.75" }),
+            91: Array(50).fill({ q: "Sebuah bak mandi dapat diisi penuh oleh 3 keran dalam 4 jam. Jika hanya 2 keran yang digunakan, berapa lama waktu yang dibutuhkan?", a: "6" }),
+            92: Array(50).fill({ q: "Perbandingan kelereng Merah, Hijau, Biru adalah 3:4:5. Jika selisih kelereng Biru dan Merah adalah 10, berapa jumlah semua kelereng?", a: "60" }),
+            93: Array(50).fill({ q: "Sebuah pekerjaan jika dikerjakan Adi selesai 10 hari, jika dikerjakan Budi selesai 15 hari. Jika mereka bekerja bersama, berapa hari pekerjaan itu akan selesai?", a: "6" }),
+            94: Array(50).fill({ q: "Jarak pada peta 5 cm. Skala peta 1:1.000.000. Berapa jarak sebenarnya dalam km?", a: "50" }),
+            95: Array(50).fill({ q: "Kamu menginvestasikan Rp10.000.000. Tahun pertama untung 10%, tahun kedua rugi 10% dari nilai akhir tahun pertama. Berapa nilai investasimu sekarang?", a: "9900000" }),
+            96: Array(50).fill({ q: "Dalam sebuah kotak ada 5 bola merah dan 3 bola biru. Berapa peluang terambilnya 1 bola biru?", a: "3/8" }),
+            97: Array(50).fill({ q: "Sebuah tabung memiliki jari-jari 7 cm dan tinggi 10 cm. Berapa volumenya? (π = 22/7)", a: "1540" }),
+            98: Array(50).fill({ q: "Sebuah mobil berangkat dari kota A ke B dengan kecepatan 60 km/jam selama 3 jam, lalu kembali dari B ke A selama 2 jam. Berapa kecepatan rata-rata mobil saat kembali?", a: "90" }),
+            99: Array(50).fill({ q: "Berapa banyak cara menyusun kata 'ULAR'?", a: "24" }),
+            100: Array(50).fill({ q: "Selamat! Kamu Pemenangnya! Pertanyaan terakhir: (100 / 5) * (10 - 5) = ?", a: "100" }),
+        };
+
+        // --- Setup Canvas dan Game ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const rollButton = document.getElementById('rollButton');
+        const undoButton = document.getElementById('undoButton');
+        const resetButton = document.getElementById('resetButton');
+        const messageEl = document.getElementById('message');
+        const turnIndicator = document.getElementById('turn-indicator');
+        const diceEl = document.getElementById('dice-inner');
+        const playerLegend = document.getElementById('player-legend');
+        
+        const gameQuestionModal = document.getElementById('gameQuestionModal');
+        const gameQuestionText = document.getElementById('gameQuestionText');
+        const questionPlayerId = document.getElementById('questionPlayerId');
+        const correctAnswerButton = document.getElementById('correctAnswerButton');
+        const wrongAnswerButton = document.getElementById('wrongAnswerButton');
+
+        const settingsButton = document.getElementById('settingsButton');
+        const settingsModal = document.getElementById('settingsModal');
+        const closeSettingsButton = document.getElementById('closeSettingsButton');
+        const playerCountInput = document.getElementById('playerCount');
+        const playerCountLabel = document.getElementById('playerCountLabel');
+        const playerAvatarSettings = document.getElementById('playerAvatarSettings');
+        const musicUpload = document.getElementById('musicUpload');
+        const bgMusicPlayer = document.getElementById('bgMusicPlayer');
+        const playlistContainer = document.getElementById('playlist');
+        let playlist = [];
+        
+        const boardSize = 10;
+        const totalSquares = boardSize * boardSize;
+        let squareSize;
+        let currentRoll = 0;
+        let moveHistory = [];
+        let destinationSquare = 0;
+        let questionCounters = {}; // Untuk melacak soal yang sudah digunakan
+
+        const playerAvatars = ['😀', '🚀', '⭐', '🤖', '🦄', '🦁', '🐢', '🦊', '🐼', '🐙', '🦖', '👑', '🎩', '💎', '⚽'];
+        let players = [];
+        let currentPlayerIndex = 0;
+        let gameOver = false;
+
+        const snakes = [ { start: 99, end: 80 }, { start: 95, end: 75 }, { start: 92, end: 88 }, { start: 89, end: 68 }, { start: 74, end: 53 }, { start: 64, end: 60 }, { start: 62, end: 19 }, { start: 49, end: 11 }, { start: 46, end: 25 }, { start: 16, end: 6 } ];
+        const ladders = [ { start: 2, end: 38 },  { start: 7, end: 14 },  { start: 8, end: 31 }, { start: 15, end: 26 }, { start: 21, end: 42 }, { start: 28, end: 84 }, { start: 36, end: 44 }, { start: 51, end: 67 }, { start: 71, end: 91 }, { start: 78, end: 98 }, { start: 87, end: 94 } ];
+
+        // --- Fungsi Suara ---
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function getCoords(square) {
+            square--;
+            let row = Math.floor(square / boardSize);
+            let col = square % boardSize;
+            if (row % 2 !== 0) col = boardSize - 1 - col;
+            const x = col * squareSize + squareSize / 2;
+            const y = (boardSize - 1 - row) * squareSize + squareSize / 2;
+            return { x, y };
+        }
+        
+        function drawBoard() {
+            const colors = ['#ef4444', '#facc15', '#3b82f6', '#22c55e'];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < totalSquares; i++) {
+                const { x, y } = getCoords(i + 1);
+                const colorIndex = (Math.floor((x-squareSize/2)/squareSize) + Math.floor((y-squareSize/2)/squareSize)) % 4;
+                ctx.fillStyle = colors[colorIndex];
+                ctx.fillRect(x - squareSize / 2, y - squareSize / 2, squareSize, squareSize);
+                ctx.fillStyle = 'black';
+                ctx.font = `bold ${squareSize * 0.3}px Poppins`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(i + 1, x, y);
+            }
+            const starCoords = getCoords(100);
+            drawStar(starCoords.x, starCoords.y, 5, squareSize * 0.3, squareSize * 0.15);
+        }
+
+        function drawStar(cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = Math.PI / 2 * 3, x = cx, y = cy, step = Math.PI / spikes;
+            ctx.beginPath(); ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius; y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y); rot += step;
+                x = cx + Math.cos(rot) * innerRadius; y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y); rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius); ctx.closePath();
+            ctx.lineWidth=2; ctx.strokeStyle='black'; ctx.stroke();
+            ctx.fillStyle='yellow'; ctx.fill();
+        }
+        
+        function drawSnakesAndLadders() {
+            snakes.forEach(snake => drawClassicSnake(getCoords(snake.start), getCoords(snake.end)));
+            ladders.forEach(ladder => drawLadder(getCoords(ladder.start), getCoords(ladder.end), '#000000', 8));
+        }
+        
+        function drawClassicSnake(start, end) {
+            const cp1x = start.x + (end.x - start.x) / 2 + (Math.random() - 0.5) * 60;
+            const cp1y = start.y + (end.y - start.y) / 2 + (Math.random() - 0.5) * 60;
+            const neckWidth = squareSize * 0.25;
+            const neckAngle = Math.atan2(end.y - cp1y, end.x - cp1x);
+            const neckPerpX = -Math.sin(neckAngle);
+            const neckPerpY = Math.cos(neckAngle);
+            const neckP1x = end.x + neckPerpX * neckWidth / 2;
+            const neckP1y = end.y + neckPerpY * neckWidth / 2;
+            const neckP2x = end.x - neckPerpX * neckWidth / 2;
+            const neckP2y = end.y - neckPerpY * neckWidth / 2;
+            const cpSide1x = cp1x + neckPerpX * neckWidth / 4;
+            const cpSide1y = cp1y + neckPerpY * neckWidth / 4;
+            const cpSide2x = cp1x - neckPerpX * neckWidth / 4;
+            const cpSide2y = cp1y - neckPerpY * neckWidth / 4;
+
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            ctx.quadraticCurveTo(cpSide1x, cpSide1y, neckP1x, neckP1y);
+            ctx.lineTo(neckP2x, neckP2y);
+            ctx.quadraticCurveTo(cpSide2x, cpSide2y, start.x, start.y);
+            ctx.closePath();
+            ctx.fillStyle = '#f59e0b';
+            ctx.fill();
+            ctx.strokeStyle = '#78350f';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            const headSize = squareSize * 0.35;
+            ctx.save();
+            ctx.translate(end.x, end.y);
+            ctx.rotate(neckAngle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(headSize * 0.5, -headSize * 0.8, headSize * 1.2, 0);
+            ctx.quadraticCurveTo(headSize * 0.5, headSize * 0.8, 0, 0);
+            ctx.closePath();
+            ctx.fillStyle = '#c2410c';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, -neckWidth / 2);
+            ctx.quadraticCurveTo(headSize * 0.8, -headSize * 1.2, headSize * 1.3, 0);
+            ctx.strokeStyle = '#78350f';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(0, neckWidth / 2);
+            ctx.quadraticCurveTo(headSize * 0.6, headSize, headSize * 1.1, 0);
+            ctx.stroke();
+            
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = 'gray';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(headSize * 0.5, -headSize * 0.1); 
+            ctx.lineTo(headSize * 0.7, -headSize * 0.1); 
+            ctx.lineTo(headSize * 0.6, headSize * 0.4); 
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(headSize * 0.8, -headSize * 0.5, headSize * 0.2, 0, 2 * Math.PI);
+            ctx.fillStyle = 'black';
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(headSize * 0.8, -headSize * 0.5, headSize * 0.08, 0, 2 * Math.PI);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawLadder(start, end, color, lineWidth) {
+            ctx.strokeStyle = color; ctx.lineWidth = lineWidth;
+            const angle = Math.atan2(end.y - start.y, end.x - start.x), dx = Math.cos(angle), dy = Math.sin(angle);
+            const railOffset = squareSize * 0.2;
+            ctx.beginPath(); ctx.moveTo(start.x - dy * railOffset, start.y + dx * railOffset); ctx.lineTo(end.x - dy * railOffset, end.y + dx * railOffset); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(start.x + dy * railOffset, start.y - dx * railOffset); ctx.lineTo(end.x + dy * railOffset, end.y - dx * railOffset); ctx.stroke();
+            const dist = Math.sqrt(Math.pow(end.x-start.x, 2) + Math.pow(end.y-start.y, 2));
+            const numRungs = Math.floor(dist / (squareSize * 0.6));
+            for(let i = 1; i <= numRungs; i++) {
+                const rungX = start.x + (end.x - start.x) * i / (numRungs + 1);
+                const rungY = start.y + (end.y - start.y) * i / (numRungs + 1);
+                ctx.beginPath(); ctx.moveTo(rungX - dy * railOffset, rungY + dx * railOffset); ctx.lineTo(rungX + dy * railOffset, rungY - dx * railOffset); ctx.stroke();
+            }
+        }
+
+        function drawPlayers() {
+            players.forEach((player, index) => {
+                const { x, y } = getCoords(player.position);
+                const offset = (index % 4 - 1.5) * (squareSize * 0.12);
+                
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(x + offset, y + offset, squareSize * 0.3, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.font = `bold ${squareSize * 0.5}px Poppins`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(player.avatar, x + offset, y + offset);
+            });
+        }
+
+        function redrawGame() {
+            drawBoard();
+            drawSnakesAndLadders();
+            drawPlayers();
+        }
+
+        function rollDice() {
+            if (gameOver) return;
+            rollButton.disabled = true; undoButton.disabled = true;
+            
+            const player = players[currentPlayerIndex];
+            const roll = Math.floor(Math.random() * 6) + 1;
+            currentRoll = roll;
+            
+            destinationSquare = player.position + currentRoll;
+            if (destinationSquare > totalSquares) {
+                destinationSquare = player.position; 
+            }
+
+            animateDice(roll);
+            setTimeout(() => {
+                showQuestionForSquare(destinationSquare);
+            }, 1200);
+        }
+        
+        function showQuestionForSquare(squareNumber) {
+            const player = players[currentPlayerIndex];
+            questionPlayerId.textContent = player.id;
+            
+            const questionsForThisSquare = questionsBySquare[squareNumber];
+            if (questionsForThisSquare) {
+                // Ambil indeks soal saat ini untuk kotak ini
+                let questionIndex = questionCounters[squareNumber];
+                
+                // Ambil soal secara berurutan
+                const question = questionsForThisSquare[questionIndex];
+                gameQuestionText.textContent = question.q;
+
+                // Naikkan penghitung untuk waktu berikutnya kotak ini diinjak,
+                // dan kembali ke awal jika semua soal telah digunakan.
+                questionCounters[squareNumber] = (questionIndex + 1) % questionsForThisSquare.length;
+
+                wrongAnswerButton.textContent = `Jawaban Salah (Tetap di ${player.position})`
+            } else {
+                gameQuestionText.textContent = "Kotak aman! Tidak ada pertanyaan kali ini.";
+            }
+            
+            gameQuestionModal.classList.remove('hidden');
+        }
+
+        function handleCorrectAnswer() {
+            gameQuestionModal.classList.add('hidden');
+            const player = players[currentPlayerIndex];
+            saveHistory();
+            
+            movePlayer(player, player.position, destinationSquare, () => {
+                checkSpecialSquare(player, currentRoll === 6);
+            });
+        }
+        
+        function handleWrongAnswer() {
+            gameQuestionModal.classList.add('hidden');
+            messageEl.textContent = `Jawaban salah! Pemain ${players[currentPlayerIndex].id} tetap di tempat.`;
+            endTurn();
+        }
+
+        function animateDice(roll) {
+            const rotations = { 1: 'rotateY(0deg)', 2: 'rotateX(-90deg)', 3: 'rotateY(90deg)', 4: 'rotateY(-90deg)', 5: 'rotateX(90deg)', 6: 'rotateY(180deg)' };
+            const randomX = 360 * (Math.floor(Math.random() * 2) + 2);
+            const randomY = 360 * (Math.floor(Math.random() * 2) + 2);
+            diceEl.style.transform = `rotateX(${randomX}deg) rotateY(${randomY}deg) ${rotations[roll]}`;
+        }
+
+        function movePlayer(player, start, end, onComplete) {
+            const isMovingForward = end > start;
+            let current = start;
+            const interval = setInterval(() => {
+                if ((isMovingForward && current >= end) || (!isMovingForward && current <= end)) {
+                    clearInterval(interval);
+                    player.position = end;
+                    redrawGame();
+                    if (onComplete) onComplete();
+                    return;
+                }
+                current = isMovingForward ? current + 1 : current - 1;
+                player.position = current;
+                redrawGame();
+            }, 150);
+        }
+
+        function checkSpecialSquare(player, rollAgain = false) {
+            const snake = snakes.find(s => s.start === player.position);
+            if (snake) {
+                messageEl.textContent = `Pemain ${player.id} turun karena ular!`;
+                speak('heyyy, kamu turun karena ular');
+                setTimeout(() => { 
+                    movePlayer(player, player.position, snake.end, () => endTurn()); 
+                }, 500);
+                return;
+            }
+            const ladder = ladders.find(l => l.start === player.position);
+            if (ladder) {
+                messageEl.textContent = `Pemain ${player.id} naik tangga!`;
+                speak('selamat kamu naik tangga');
+                setTimeout(() => { 
+                    movePlayer(player, player.position, ladder.end, () => endTurn()); 
+                }, 500);
+                return;
+            }
+            
+            if (player.position === totalSquares) {
+                 endTurn();
+                 return;
+            }
+
+            if (rollAgain) {
+                messageEl.textContent = `Jawaban benar! Maju ${currentRoll} & kocok lagi.`;
+                speak('enam... lempar lagi dadunya');
+                rollButton.disabled = false;
+                undoButton.disabled = moveHistory.length === 0;
+            } else {
+                messageEl.textContent = `Jawaban benar! Maju ${currentRoll} langkah.`;
+                endTurn();
+            }
+        }
+        
+        function endTurn() {
+            const player = players[currentPlayerIndex];
+            if (player.position === totalSquares) {
+                gameOver = true;
+                messageEl.textContent = `Hore! Pemain ${player.id} Menang!`;
+                speak('selamat... kamu juara, kamu pemenang, you are the champions..');
+                rollButton.textContent = 'Main Lagi?';
+                rollButton.disabled = false;
+                undoButton.disabled = true;
+                turnIndicator.textContent = "Permainan Selesai!";
+                turnIndicator.style.backgroundColor = '#4ade80';
+            } else {
+                currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+                updateTurnIndicator();
+                rollButton.disabled = false;
+                undoButton.disabled = moveHistory.length === 0;
+            }
+        }
+        
+        function saveHistory() {
+            const currentPositions = players.map(p => p.position);
+            moveHistory.push({
+                positions: currentPositions,
+                playerIndex: currentPlayerIndex
+            });
+        }
+        
+        function undoMove() {
+            if (moveHistory.length === 0) return;
+            const lastState = moveHistory.pop();
+            lastState.positions.forEach((pos, index) => {
+                players[index].position = pos;
+            });
+            currentPlayerIndex = lastState.playerIndex;
+            updateTurnIndicator();
+            redrawGame();
+            messageEl.textContent = "Langkah terakhir dibatalkan.";
+            rollButton.disabled = false;
+            undoButton.disabled = moveHistory.length === 0;
+        }
+
+        function updateTurnIndicator() {
+            if (players.length === 0) return;
+            const nextPlayer = players[currentPlayerIndex];
+            turnIndicator.textContent = `Giliran Pemain ${nextPlayer.id} ${nextPlayer.avatar}`;
+            turnIndicator.style.backgroundColor = '#e5e7eb';
+        }
+
+        function updatePlayerLegend() {
+            playerLegend.innerHTML = '';
+            players.forEach(p => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'flex items-center space-x-2';
+                legendItem.innerHTML = `<span class="text-2xl">${p.avatar}</span><span class="font-semibold text-gray-700">Pemain ${p.id}</span>`;
+                playerLegend.appendChild(legendItem);
+            });
+        }
+
+        function renderPlayerAvatarSettings() {
+            playerAvatarSettings.innerHTML = '';
+            players.forEach((player, index) => {
+                const avatarSettingDiv = document.createElement('div');
+                avatarSettingDiv.className = 'flex items-center justify-between';
+                const label = document.createElement('label');
+                label.textContent = `Pemain ${player.id}`;
+                label.className = 'text-gray-700';
+                const avatarSelect = document.createElement('select');
+                avatarSelect.className = 'avatar-select';
+                playerAvatars.forEach(avatar => {
+                    const option = document.createElement('option');
+                    option.value = avatar;
+                    option.textContent = avatar;
+                    if (avatar === player.avatar) option.selected = true;
+                    avatarSelect.appendChild(option);
+                });
+                avatarSelect.addEventListener('change', (e) => {
+                    players[index].avatar = e.target.value;
+                    updatePlayerLegend();
+                    updateTurnIndicator();
+                    redrawGame();
+                });
+                avatarSettingDiv.appendChild(label);
+                avatarSettingDiv.appendChild(avatarSelect);
+                playerAvatarSettings.appendChild(avatarSettingDiv);
+            });
+        }
+
+        function resetGame() {
+            const playerCountVal = parseInt(playerCountInput.value);
+            const oldPlayers = players;
+            players = [];
+            for (let i = 0; i < playerCountVal; i++) {
+                players.push({ 
+                    id: i + 1, 
+                    position: 1, 
+                    avatar: oldPlayers[i] ? oldPlayers[i].avatar : playerAvatars[i] 
+                });
+            }
+            
+            // Atur ulang penghitung soal setiap kali permainan dimulai
+            questionCounters = {};
+            for (let i = 1; i <= totalSquares; i++) {
+                questionCounters[i] = 0;
+            }
+
+            currentPlayerIndex = 0;
+            gameOver = false;
+            moveHistory = [];
+            messageEl.innerHTML = '&nbsp;';
+            rollButton.textContent = 'Kocok Dadu';
+            rollButton.disabled = false;
+            undoButton.disabled = true;
+            updatePlayerLegend();
+            updateTurnIndicator();
+            renderPlayerAvatarSettings();
+            redrawGame();
+        }
+
+        function init() {
+            const container = document.querySelector('.board-container');
+            const size = Math.min(container.clientWidth, container.clientHeight);
+            canvas.width = size; canvas.height = size;
+            squareSize = canvas.width / boardSize;
+            resetGame();
+        }
+
+        // --- Event Listeners Pengaturan ---
+        settingsButton.addEventListener('click', () => {
+            renderPlayerAvatarSettings();
+            settingsModal.classList.remove('hidden');
+        });
+        closeSettingsButton.addEventListener('click', () => settingsModal.classList.add('hidden'));
+        playerCountInput.addEventListener('input', (e) => playerCountLabel.textContent = e.target.value);
+        playerCountInput.addEventListener('change', resetGame);
+
+        musicUpload.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (!files.length) return;
+            for(const file of files) {
+                playlist.push({ name: file.name, url: URL.createObjectURL(file) });
+            }
+            renderPlaylist();
+        });
+
+        function renderPlaylist() {
+            playlistContainer.innerHTML = '';
+            if (playlist.length === 0) {
+                playlistContainer.innerHTML = '<p class="text-gray-500 text-center">Playlist kosong.</p>';
+                return;
+            }
+            playlist.forEach((song, index) => {
+                const item = document.createElement('div');
+                item.className = 'playlist-item p-2 rounded';
+                item.textContent = song.name;
+                item.dataset.index = index;
+                item.onclick = () => playSong(index);
+                playlistContainer.appendChild(item);
+            });
+        }
+
+        function playSong(index) {
+            const song = playlist[index];
+            bgMusicPlayer.src = song.url;
+            bgMusicPlayer.play();
+            document.querySelectorAll('.playlist-item').forEach(item => item.classList.remove('playing'));
+            document.querySelector(`.playlist-item[data-index='${index}']`).classList.add('playing');
+        }
+
+        // --- Event Listeners Game ---
+        rollButton.addEventListener('click', () => { if (gameOver) resetGame(); else rollDice(); });
+        correctAnswerButton.addEventListener('click', handleCorrectAnswer);
+        wrongAnswerButton.addEventListener('click', handleWrongAnswer);
+        undoButton.addEventListener('click', undoMove);
+        resetButton.addEventListener('click', resetGame);
+        
+        window.addEventListener('resize', init);
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
+
